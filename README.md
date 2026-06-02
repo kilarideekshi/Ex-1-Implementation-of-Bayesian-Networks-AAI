@@ -2,8 +2,8 @@
 
 <H1 ALIGN=CENTER> Experiment-1: Implementation of Bayesian Networks</H1>
 
-### Name: 
-### Register Number:
+### Name: Deekshitha K
+### Register Number: 2305002005
 
 
 ## Aim:
@@ -45,59 +45,56 @@ To create a Bayesian Network for the given dataset in Python.
 
 ## Program:
 
-```python
+```
 import networkx as nx
-import pandas as pd
 import matplotlib.pyplot as plt
+
 from pybbn.graph.dag import Bbn
-from pybbn.graph.dag import Edge, EdgeType
-from pybbn.graph.jointree import EvidenceBuilder
+from pybbn.graph.edge import Edge, EdgeType
 from pybbn.graph.node import BbnNode
 from pybbn.graph.variable import Variable
 from pybbn.pptc.inferencecontroller import InferenceController
 
-# Display up to 50 columns in pandas DataFrame
-pd.options.display.max_columns = 50
 
-# Load the CSV file
-df = pd.read_csv('weatherAUS.csv', encoding='utf-8')
+# Humidity9am
+H9am = BbnNode(
+    Variable(0, "H9am", ["<=60", ">60"]),
+    [0.4, 0.6]
+)
 
-# Filter out rows with null values in the 'RainTomorrow' column
-df = df[pd.isnull(df['RainTomorrow']) == False]
+# Humidity3pm | Humidity9am
+H3pm = BbnNode(
+    Variable(1, "H3pm", ["<=60", ">60"]),
+    [
+        0.8, 0.2,   # H9am <=60
+        0.3, 0.7    # H9am >60
+    ]
+)
 
-# Fill NaN values only for numeric columns
-df = df.fillna(df.mean(numeric_only=True))
+# Wind Gust Speed
+W = BbnNode(
+    Variable(2, "W", ["<=40", "40-50", ">50"]),
+    [
+        0.3, 0.4, 0.3
+    ]
+)
 
-# Apply categorical transformations
-df['WindGustSpeedCat'] = df['WindGustSpeed'].apply(lambda x: '0.<=40' if x <= 40 else '1.40-50' if 40 < x <= 50 else '2.>50')
-df['Humidity9amCat'] = df['Humidity9am'].apply(lambda x: '1.>60' if x > 60 else '0.<=60')
-df['Humidity3pmCat'] = df['Humidity3pm'].apply(lambda x: '1.>60' if x > 60 else '0.<=60')
+# RainTomorrow | Humidity3pm, WindGustSpeed
+RT = BbnNode(
+    Variable(3, "RT", ["No", "Yes"]),
+    [
+        0.9, 0.1,   # <=60, <=40
+        0.7, 0.3,   # <=60, 40-50
+        0.5, 0.5,   # <=60, >50
 
-# Print the DataFrame to check if transformations are correct
-print(df.head())
+        0.6, 0.4,   # >60, <=40
+        0.3, 0.7,   # >60, 40-50
+        0.1, 0.9    # >60, >50
+    ]
+)
 
-# Function to calculate probabilities
-def probs(data, child, parent1=None, parent2=None):
-    if parent1 is None:
-        # Calculate probabilities for a node without parents
-        prob = pd.crosstab(data[child], 'Empty', margins=False, normalize='columns').sort_index().to_numpy().reshape(-1).tolist()
-    else:
-        # Check if the child node has 1 parent or 2 parents
-        if parent2 is None:
-            # Calculate probabilities for a node with 1 parent
-            prob = pd.crosstab(data[parent1], data[child], margins=False, normalize='index').sort_index().to_numpy().reshape(-1).tolist()
-        else:
-            # Calculate probabilities for a node with 2 parents
-            prob = pd.crosstab([data[parent1], data[parent2]], data[child], margins=False, normalize='index').sort_index().to_numpy().reshape(-1).tolist()
-    return prob
 
-# Define nodes with variables and probabilities
-H9am = BbnNode(Variable(0, 'H9am', ['<=60', '>60']), probs(df, child='Humidity9amCat'))
-H3pm = BbnNode(Variable(1, 'H3pm', ['<=60', '>60']), probs(df, child='Humidity3pmCat', parent1='Humidity9amCat'))
-W = BbnNode(Variable(2, 'W', ['<=40', '40-50', '>50']), probs(df, child='WindGustSpeedCat'))
-RT = BbnNode(Variable(3, 'RT', ['No', 'Yes']), probs(df, child='RainTomorrow', parent1='Humidity3pmCat', parent2='WindGustSpeedCat'))
 
-# Create the Bayesian Belief Network
 bbn = Bbn() \
     .add_node(H9am) \
     .add_node(H3pm) \
@@ -107,31 +104,43 @@ bbn = Bbn() \
     .add_edge(Edge(H3pm, RT, EdgeType.DIRECTED)) \
     .add_edge(Edge(W, RT, EdgeType.DIRECTED))
 
-# Apply inference
+
+
+
 join_tree = InferenceController.apply(bbn)
 
-# Set positions for nodes in the graph
-pos = {0: (-1, 2), 1: (-1, 0.5), 2: (1, 0.5), 3: (0, -1)}
+print("Bayesian Network Created Successfully!")
 
-# Define graph drawing options
-options = {
-    "font_size": 16,
-    "node_size": 4000,
-    "node_color": "white",
-    "edgecolors": "black",
-    "edge_color": "red",
-    "linewidths": 5,
-    "width": 5,
+
+
+for node in join_tree.get_bbn_nodes():
+    print("\nNode:", node.variable.name)
+
+
+
+graph, labels = bbn.to_nx_graph()
+
+pos = {
+    0: (-1, 1),
+    1: (-1, 0),
+    2: (1, 0),
+    3: (0, -1)
 }
 
-# Convert the BBN to a NetworkX graph and draw it
-n, d = bbn.to_nx_graph()
+plt.figure(figsize=(8, 6))
 
-fig, ax = plt.subplots(figsize=(6, 6))
+nx.draw(
+    graph,
+    pos,
+    labels=labels,
+    with_labels=True,
+    node_size=4000,
+    node_color="lightblue",
+    font_size=10,
+    font_weight="bold"
+)
 
-nx.draw(n, pos=pos, with_labels=True, labels=d, ax=ax, **options)
-
-ax.margins(0.10)
+plt.title("Weather Bayesian Belief Network")
 plt.axis("off")
 plt.show()
 
@@ -141,6 +150,7 @@ plt.show()
 
 ## Output:
 
+<img width="859" height="662" alt="image" src="https://github.com/user-attachments/assets/1132e435-9b5f-432a-a751-00323e453cd2" />
 
 
 ---
